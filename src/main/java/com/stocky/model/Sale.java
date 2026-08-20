@@ -32,7 +32,7 @@ public class Sale {
     @Column(nullable = false)
     private SaleStatus status = SaleStatus.COMPLETED;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -41,12 +41,4 @@ public class Sale {
 
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleItem> items = new ArrayList<>();
-}
-
-enum PaymentMethod {
-    CASH, CARD, TRANSFER, MIXED
-}
-
-enum SaleStatus {
-    COMPLETED, CANCELLED, REFUNDED
 }
