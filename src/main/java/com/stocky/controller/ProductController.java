@@ -18,6 +18,9 @@ public class ProductController {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private com.stocky.repository.StockMovementRepository stockMovementRepository;
+
     @GetMapping
     public List<Product> getAllProducts() {
         return productRepository.findAll();
@@ -31,7 +34,15 @@ public class ProductController {
 
     @PostMapping
     public Product createProduct(@RequestBody Product product) {
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        if (saved.getStockQuantity() != 0) {
+            com.stocky.model.StockMovement sm = new com.stocky.model.StockMovement();
+            sm.setProduct(saved);
+            sm.setMovementType(com.stocky.model.MovementType.PURCHASE);
+            sm.setQuantityDelta(saved.getStockQuantity());
+            stockMovementRepository.save(sm);
+        }
+        return saved;
     }
 
     @PutMapping("/{id}")
@@ -39,12 +50,26 @@ public class ProductController {
         Optional<Product> productOptional = productRepository.findById(id);
         if (productOptional.isPresent()) {
             Product product = productOptional.get();
+            int oldStock = product.getStockQuantity();
+            int newStock = productDetails.getStockQuantity();
+            
             product.setName(productDetails.getName());
             product.setSku(productDetails.getSku());
             product.setSalePrice(productDetails.getSalePrice());
             product.setCostPrice(productDetails.getCostPrice());
-            product.setStockQuantity(productDetails.getStockQuantity());
-            return ResponseEntity.ok(productRepository.save(product));
+            product.setStockQuantity(newStock);
+            
+            Product saved = productRepository.save(product);
+            
+            if (oldStock != newStock) {
+                com.stocky.model.StockMovement sm = new com.stocky.model.StockMovement();
+                sm.setProduct(saved);
+                sm.setMovementType(com.stocky.model.MovementType.ADJUSTMENT);
+                sm.setQuantityDelta(newStock - oldStock);
+                stockMovementRepository.save(sm);
+            }
+            
+            return ResponseEntity.ok(saved);
         } else {
             return ResponseEntity.notFound().build();
         }

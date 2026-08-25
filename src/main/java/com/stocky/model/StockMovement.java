@@ -35,7 +35,3 @@ public class StockMovement {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }
-
-enum MovementType {
-    SALE, PURCHASE, ADJUSTMENT, RETURN
-}

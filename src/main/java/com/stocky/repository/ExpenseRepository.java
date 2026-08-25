@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e")
     java.math.BigDecimal sumTotalExpenses();
+    
+    java.util.List<Expense> findAllByOrderByExpenseDateDesc();
 }

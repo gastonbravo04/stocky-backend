@@ -39,7 +39,3 @@ public class Expense {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }
-
-enum ExpenseCategory {
-    SUPPLIER, SERVICES, PACKAGING, SALARY, OTHER
-}

@@ -21,6 +21,9 @@ public class SalesController {
     @Autowired
     private com.stocky.repository.UserRepository userRepository;
 
+    @Autowired
+    private com.stocky.repository.StockMovementRepository stockMovementRepository;
+
     @GetMapping
     public List<Sale> getAllSales() {
         return saleRepository.findAll();
@@ -72,6 +75,13 @@ public class SalesController {
                 }
                 product.setStockQuantity(product.getStockQuantity() - itemReq.quantity);
                 productRepository.save(product);
+
+                com.stocky.model.StockMovement sm = new com.stocky.model.StockMovement();
+                sm.setProduct(product);
+                sm.setMovementType(com.stocky.model.MovementType.SALE);
+                sm.setQuantityDelta(-itemReq.quantity);
+                // sm.setReferenceId(sale.getId()); // will set later when sale is saved if needed, or null
+                stockMovementRepository.save(sm);
 
                 com.stocky.model.SaleItem saleItem = new com.stocky.model.SaleItem();
                 saleItem.setSale(sale);
