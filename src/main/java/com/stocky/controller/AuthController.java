@@ -8,6 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import com.stocky.model.RefreshToken;
+import com.stocky.service.JwtService;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -19,6 +22,9 @@ public class AuthController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private JwtService jwtService;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
@@ -34,10 +40,23 @@ public class AuthController {
             userRepository.save(admin);
         }
 
-        // Mock de inicio de sesión para que el frontend pueda pasar a la siguiente pantalla
+        Optional<User> userOpt = userRepository.findByEmail(username);
+        
+        if (userOpt.isEmpty() || !passwordEncoder.matches(password, userOpt.get().getHashedPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        // Usuario autenticado correctamente
+        User user = userOpt.get();
+        String accessToken = jwtService.generateToken(user);
+        RefreshToken refreshToken = jwtService.createRefreshToken(user);
+
         Map<String, String> response = new HashMap<>();
-        response.put("access_token", "fake-jwt-token-for-testing");
+        response.put("access_token", accessToken);
+        response.put("refresh_token", refreshToken.getToken());
         response.put("token_type", "bearer");
+        response.put("name", user.getFullName());
+        
         return ResponseEntity.ok(response);
     }
 
@@ -59,5 +78,21 @@ public class AuthController {
         userRepository.save(user);
 
         return login(email, password);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<Map<String, String>> refreshtoken(@RequestParam String requestRefreshToken) {
+        return jwtService.findByToken(requestRefreshToken)
+                .map(jwtService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    String token = jwtService.generateToken(user);
+                    Map<String, String> response = new HashMap<>();
+                    response.put("access_token", token);
+                    response.put("refresh_token", requestRefreshToken);
+                    response.put("token_type", "bearer");
+                    return ResponseEntity.ok(response);
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.FORBIDDEN).build());
     }
 }
