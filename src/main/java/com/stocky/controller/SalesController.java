@@ -34,6 +34,11 @@ public class SalesController {
         return saleRepository.findTop5ByOrderByCreatedAtDesc();
     }
 
+    @GetMapping("/{id}")
+    public Sale getSaleById(@PathVariable java.util.UUID id) {
+        return saleRepository.findById(id).orElseThrow(() -> new RuntimeException("Sale not found"));
+    }
+
     static class SaleRequest {
         public java.util.List<SaleItemRequest> items;
         public String paymentMethod;
