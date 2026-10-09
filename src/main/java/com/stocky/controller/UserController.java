@@ -23,6 +23,15 @@ public class UserController {
         return userRepository.findAll();
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<User> getCurrentUser(org.springframework.security.core.Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+        User user = (User) authentication.getPrincipal();
+        return ResponseEntity.ok(user);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable UUID id) {
         Optional<User> user = userRepository.findById(id);

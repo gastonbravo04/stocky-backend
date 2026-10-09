@@ -125,7 +125,8 @@ public class ReportController {
             m.put("id", e.getId().toString());
             m.put("type", "EXPENSE");
             m.put("amount", e.getAmount());
-            m.put("date", e.getCreatedAt().toString()); // Assuming createdAt exists, otherwise expenseDate + T00:00:00
+            java.time.LocalDateTime created = e.getCreatedAt();
+            m.put("date", created != null ? created.toString() : e.getExpenseDate().atStartOfDay().toString());
             m.put("description", e.getConcept());
             movements.add(m);
         }
