@@ -30,7 +30,7 @@ jobs:
 
   build-and-push:
     runs-on: ubuntu-latest
-    needs: codeql-analysis # Se ejecuta después del análisis estático
+    needs: codeql-analysis
     steps:
       - name: Hacer checkout del código
         uses: actions/checkout@v4
