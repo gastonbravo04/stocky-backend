@@ -25,3 +25,4 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/stocky
 spring.datasource.username=postgres
 
 spring.datasource.password=root
+
