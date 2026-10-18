@@ -1,0 +1,67 @@
+name: CD – Continuous Deployment
+
+on:
+  workflow_run:
+    workflows: ["CI – Continuous Integration"]
+    types:
+      - completed
+
+env:
+  REGISTRY_NAME: stockyacr
+  IMAGE_NAME: stocky
+  AZURE_WEBAPP_NAME: stocky-backend
+  AZURE_RESOURCE_GROUP: stocky-rg
+
+jobs:
+  verify-ci:
+    name: Verify CI result
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: CI succeeded
+        run: echo "CI succeeded, proceeding with deployment"
+
+  deploy:
+    name: Deploy to Azure App Service
+    runs-on: ubuntu-latest
+    needs: verify-ci
+    steps:
+      - name: Download image‑tag artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: image-tag
+          path: .
+
+      - name: Read image tag
+        id: img
+        run: |
+          IMAGE_TAG=$(cat image-tag.txt)
+          echo "image=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set container image on App Service
+        run: |
+          az webapp config container set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --docker-custom-image-name ${{ steps.img.outputs.image }}
+
+      - name: Update APP_VERSION app‑setting
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ github.sha:0:7 }}"
+          fi
+          az webapp config appsettings set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --settings APP_VERSION=$VERSION
+
+      - name: Show deployment info
+        run: |
+          echo "Deployed image: ${{ steps.img.outputs.image }}"
+          az webapp show -g ${{ env.AZURE_RESOURCE_GROUP }} -n ${{ env.AZURE_WEBAPP_NAME }} --query state

@@ -1,0 +1,115 @@
+name: CI – Continuous Integration
+
+on:
+  # Ejecutar en cualquier push o pull‑request a cualquier rama
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+
+env:
+  # Variables de entorno usadas en varios jobs
+  REGISTRY_NAME: stockyacr           # <-- tu ACR sin .azurecr.io
+  IMAGE_NAME: stocky
+  JAVA_VERSION: '17'
+
+jobs:
+  # ---------------------------------------------------------
+  # 1️⃣  Build & Unit Tests
+  # ---------------------------------------------------------
+  build-test:
+    name: Build & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Compile & run tests
+        run: |
+          mvn -B verify               # compila + ejecuta tests unitarios
+
+      - name: Export built JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stocky-jar
+          path: target/*.jar
+
+  # ---------------------------------------------------------
+  # 2️⃣  CodeQL (estático) + Security Scans
+  # ---------------------------------------------------------
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      # ---------- CodeQL ----------
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+      # ---------- Anchore (Grype) ----------
+      - name: Anchore Scan (Grype)
+        uses: anchore/scan-action@v6
+        with:
+          image: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          fail-build: true
+
+  # ---------------------------------------------------------
+  # 3️⃣  Build Docker image & push to ACR
+  # ---------------------------------------------------------
+  docker-build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build Docker image (runtime stage)
+        run: |
+          docker build \
+            --target runtime \
+            -t ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Export image tag as artifact (for CD)
+        run: echo "${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}" > image-tag.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-tag
+          path: image-tag.txt
