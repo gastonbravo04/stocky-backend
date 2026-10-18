@@ -1,24 +1,28 @@
 name: CI – Continuous Integration
 
 on:
-  # Ejecutar en cualquier push o pull‑request a cualquier rama
   push:
     branches: ['*']
   pull_request:
     branches: ['*']
 
+#  SOLUCIÓN 1: Permisos necesarios para que CodeQL pueda subir sus reportes
+permissions:
+  security-events: write
+  actions: read
+  contents: read
+
 env:
-  # Variables de entorno usadas en varios jobs
-  REGISTRY_NAME: stockyacr           # <-- tu ACR sin .azurecr.io
+  REGISTRY_NAME: stockyacr
   IMAGE_NAME: stocky
   JAVA_VERSION: '17'
 
 jobs:
   # ---------------------------------------------------------
-  # 1️⃣  Build & Unit Tests
+  # 1️⃣  Build, Unit Tests & CodeQL (SAST)
   # ---------------------------------------------------------
   build-test:
-    name: Build & Unit Tests
+    name: Build & CodeQL Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,9 +40,17 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
+      #  SOLUCIÓN 2: Envolver la compilación con CodeQL
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+
       - name: Compile & run tests
-        run: |
-          mvn -B verify               # compila + ejecuta tests unitarios
+        run: mvn -B verify               # CodeQL espía este proceso en vivo
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
 
       - name: Export built JAR artifact
         uses: actions/upload-artifact@v4
@@ -47,46 +59,32 @@ jobs:
           path: target/*.jar
 
   # ---------------------------------------------------------
-  # 2️⃣  CodeQL (estático) + Security Scans
+  # 2️⃣  Build Docker image, Grype Scan & Push to ACR
   # ---------------------------------------------------------
-  security:
-    name: Security Scan
+  docker-build:
+    name: Build, Scan & Push Docker Image
     runs-on: ubuntu-latest
     needs: build-test
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
+      #  SOLUCIÓN 3: Construir la imagen localmente PRIMERO
+      - name: Build Docker image (runtime stage)
+        run: |
+          docker build \
+            --target runtime \
+            -t ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            .
 
-      # ---------- CodeQL ----------
-      - name: Initialise CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: java
-
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
-
-      # ---------- Anchore (Grype) ----------
+      #  SOLUCIÓN 4: Escanear la imagen YA construida (Grype)
       - name: Anchore Scan (Grype)
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@v3
         with:
           image: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           fail-build: true
 
-  # ---------------------------------------------------------
-  # 3️⃣  Build Docker image & push to ACR
-  # ---------------------------------------------------------
-  docker-build:
-    name: Build & Push Docker Image
-    runs-on: ubuntu-latest
-    needs: security
-    steps:
-      - uses: actions/checkout@v4
+      # NOTA DEVSECOPS: Si Grype falla, el pipeline aborta acá. 
+      # El código vulnerable JAMÁS llega a los siguientes pasos de Login y Push.
 
       - name: Login to Azure Container Registry
         uses: azure/docker-login@v1
@@ -94,13 +92,6 @@ jobs:
           login-server: ${{ secrets.ACR_LOGIN_SERVER }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Build Docker image (runtime stage)
-        run: |
-          docker build \
-            --target runtime \
-            -t ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            .
 
       - name: Push Docker image
         run: |
