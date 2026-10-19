@@ -1,20 +1,8 @@
-FROM maven:3.9-eclipse-temurin-17-noble AS base
-WORKDIR /java/app/base
-
-RUN apt-get update 
-RUN apt-get install -y build-essential
-RUN apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
-
-RUN rm -rf /var/lib/apt/lists/*
+FROM maven:3.9-eclipse-temurin-17-noble AS builder
+WORKDIR /app
 
 COPY pom.xml .
-RUN mvn dependency:resolve -B
-
-FROM maven:3.9-eclipse-temurin-17-noble AS builder
-WORKDIR /java/app/builder
-
-COPY --from=base /root/.m2 /root/.m2
-COPY . .
+COPY src ./src
 RUN mvn clean package -DskipTests -B
 
 FROM gcr.io/distroless/java17-debian13:nonroot AS runtime
@@ -24,9 +12,7 @@ ENV JAVA_OPTS=""
 USER nobody
 WORKDIR /app
 
-# Ajuste 1: Uso de comodín para evitar errores de nombre
-COPY --from=builder /java/app/builder/target/*.jar /app/app.jar
+COPY --from=builder /app/target/*.jar /app/app.jar
 EXPOSE 8080
 
-# Ajuste 2: Formato shell para expandir variables de entorno correctamente
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
