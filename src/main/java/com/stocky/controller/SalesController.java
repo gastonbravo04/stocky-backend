@@ -1,11 +1,14 @@
 package com.stocky.controller;
 
 import com.stocky.model.Sale;
+import com.stocky.model.User;
 import com.stocky.repository.SaleRepository;
+import com.stocky.service.SecurityHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/sales")
@@ -19,33 +22,36 @@ public class SalesController {
     private com.stocky.repository.ProductRepository productRepository;
 
     @Autowired
-    private com.stocky.repository.UserRepository userRepository;
+    private com.stocky.repository.StockMovementRepository stockMovementRepository;
 
     @Autowired
-    private com.stocky.repository.StockMovementRepository stockMovementRepository;
+    private SecurityHelperService securityHelper;
 
     @GetMapping
     public List<Sale> getAllSales() {
-        return saleRepository.findAll();
+        User user = securityHelper.getRequiredCurrentUser();
+        return saleRepository.findByUserOrderByCreatedAtDesc(user);
     }
 
     @GetMapping("/recent")
     public List<Sale> getRecentSales() {
-        return saleRepository.findTop5ByOrderByCreatedAtDesc();
+        User user = securityHelper.getRequiredCurrentUser();
+        return saleRepository.findTop5ByUserOrderByCreatedAtDesc(user);
     }
 
     @GetMapping("/{id}")
-    public Sale getSaleById(@PathVariable java.util.UUID id) {
-        return saleRepository.findById(id).orElseThrow(() -> new RuntimeException("Sale not found"));
+    public Sale getSaleById(@PathVariable UUID id) {
+        User user = securityHelper.getRequiredCurrentUser();
+        return saleRepository.findByIdAndUser(id, user).orElseThrow(() -> new RuntimeException("Sale not found"));
     }
 
-    static class SaleRequest {
+    public static class SaleRequest {
         public java.util.List<SaleItemRequest> items;
         public String paymentMethod;
-        public String payment_method; // just in case
+        public String payment_method;
     }
 
-    static class SaleItemRequest {
+    public static class SaleItemRequest {
         public java.util.Map<String, String> product;
         public int quantity;
     }
@@ -53,24 +59,20 @@ public class SalesController {
     @PostMapping
     @org.springframework.transaction.annotation.Transactional
     public Sale createSale(@RequestBody SaleRequest request) {
+        User currentUser = securityHelper.getRequiredCurrentUser();
+
         Sale sale = new Sale();
-        
-        // Handle payment method case (camelCase vs snake_case)
         String pm = request.paymentMethod != null ? request.paymentMethod : request.payment_method;
         sale.setPaymentMethod(com.stocky.model.PaymentMethod.valueOf(pm != null ? pm.toUpperCase() : "CASH"));
         sale.setStatus(com.stocky.model.SaleStatus.COMPLETED);
-        
-        // Fetch a default user (since we don't have auth wired in controller yet)
-        com.stocky.model.User defaultUser = userRepository.findAll().stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("No users found in database"));
-        sale.setUser(defaultUser);
+        sale.setUser(currentUser);
 
         java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         java.util.List<com.stocky.model.SaleItem> saleItems = new java.util.ArrayList<>();
 
         if (request.items != null) {
             for (SaleItemRequest itemReq : request.items) {
-                java.util.UUID productId = java.util.UUID.fromString(itemReq.product.get("id"));
+                UUID productId = UUID.fromString(itemReq.product.get("id"));
                 com.stocky.model.Product product = productRepository.findById(productId)
                         .orElseThrow(() -> new RuntimeException("Product not found"));
 
@@ -85,7 +87,6 @@ public class SalesController {
                 sm.setProduct(product);
                 sm.setMovementType(com.stocky.model.MovementType.SALE);
                 sm.setQuantityDelta(-itemReq.quantity);
-                // sm.setReferenceId(sale.getId()); // will set later when sale is saved if needed, or null
                 stockMovementRepository.save(sm);
 
                 com.stocky.model.SaleItem saleItem = new com.stocky.model.SaleItem();

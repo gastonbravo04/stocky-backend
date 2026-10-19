@@ -1,13 +1,21 @@
 package com.stocky.controller;
 
+import com.stocky.model.Expense;
+import com.stocky.model.User;
 import com.stocky.repository.ExpenseRepository;
 import com.stocky.repository.SaleRepository;
+import com.stocky.service.SecurityHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/finance")
@@ -20,10 +28,15 @@ public class FinanceController {
     @Autowired
     private ExpenseRepository expenseRepository;
 
+    @Autowired
+    private SecurityHelperService securityHelper;
+
     @GetMapping("/cash-flow")
     public Map<String, BigDecimal> getCashflow() {
-        BigDecimal totalIncome = saleRepository.sumTotalSales();
-        BigDecimal totalExpenses = expenseRepository.sumTotalExpenses();
+        User user = securityHelper.getRequiredCurrentUser();
+
+        BigDecimal totalIncome = saleRepository.sumTotalSalesByUser(user);
+        BigDecimal totalExpenses = expenseRepository.sumTotalExpensesByUser(user);
         BigDecimal balance = totalIncome.subtract(totalExpenses);
 
         Map<String, BigDecimal> cashflow = new HashMap<>();
@@ -35,35 +48,42 @@ public class FinanceController {
     }
 
     @GetMapping("/expenses")
-    public java.util.List<com.stocky.model.Expense> getExpenses() {
-        return expenseRepository.findAllByOrderByExpenseDateDesc();
+    public List<Expense> getExpenses() {
+        User user = securityHelper.getRequiredCurrentUser();
+        return expenseRepository.findByUserOrderByExpenseDateDesc(user);
     }
 
     @PostMapping("/expenses")
-    public com.stocky.model.Expense createExpense(@RequestBody com.stocky.model.Expense expense) {
+    public Expense createExpense(@RequestBody Expense expense) {
+        User user = securityHelper.getRequiredCurrentUser();
+        expense.setUser(user);
+
         if (expense.getExpenseDate() == null) {
-            expense.setExpenseDate(java.time.LocalDate.now());
+            expense.setExpenseDate(LocalDate.now());
         }
         return expenseRepository.save(expense);
     }
 
     @DeleteMapping("/expenses/{id}")
-    public org.springframework.http.ResponseEntity<?> deleteExpense(@PathVariable java.util.UUID id) {
-        if (expenseRepository.existsById(id)) {
-            expenseRepository.deleteById(id);
-            return org.springframework.http.ResponseEntity.ok().build();
+    public ResponseEntity<?> deleteExpense(@PathVariable UUID id) {
+        User user = securityHelper.getRequiredCurrentUser();
+        Optional<Expense> existing = expenseRepository.findByIdAndUser(id, user);
+        if (existing.isPresent()) {
+            expenseRepository.delete(existing.get());
+            return ResponseEntity.ok().build();
         }
-        return org.springframework.http.ResponseEntity.notFound().build();
+        return ResponseEntity.notFound().build();
     }
 
     @PutMapping("/expenses/{id}")
-    public org.springframework.http.ResponseEntity<com.stocky.model.Expense> updateExpense(
-            @PathVariable java.util.UUID id, 
-            @RequestBody com.stocky.model.Expense updatedExpense) {
+    public ResponseEntity<Expense> updateExpense(
+            @PathVariable UUID id, 
+            @RequestBody Expense updatedExpense) {
         
-        java.util.Optional<com.stocky.model.Expense> existingExpenseOpt = expenseRepository.findById(id);
+        User user = securityHelper.getRequiredCurrentUser();
+        Optional<Expense> existingExpenseOpt = expenseRepository.findByIdAndUser(id, user);
         if (existingExpenseOpt.isPresent()) {
-            com.stocky.model.Expense existingExpense = existingExpenseOpt.get();
+            Expense existingExpense = existingExpenseOpt.get();
             existingExpense.setConcept(updatedExpense.getConcept());
             existingExpense.setAmount(updatedExpense.getAmount());
             existingExpense.setCategory(updatedExpense.getCategory());
@@ -72,9 +92,9 @@ public class FinanceController {
             }
             existingExpense.setNotes(updatedExpense.getNotes());
             
-            com.stocky.model.Expense saved = expenseRepository.save(existingExpense);
-            return org.springframework.http.ResponseEntity.ok(saved);
+            Expense saved = expenseRepository.save(existingExpense);
+            return ResponseEntity.ok(saved);
         }
-        return org.springframework.http.ResponseEntity.notFound().build();
+        return ResponseEntity.notFound().build();
     }
 }

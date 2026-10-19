@@ -1,10 +1,12 @@
 package com.stocky.controller;
 
+import com.stocky.model.Expense;
+import com.stocky.model.Sale;
+import com.stocky.model.User;
+import com.stocky.repository.ExpenseRepository;
 import com.stocky.repository.SaleItemRepository;
 import com.stocky.repository.SaleRepository;
-import com.stocky.repository.ExpenseRepository;
-import com.stocky.model.Sale;
-import com.stocky.model.Expense;
+import com.stocky.service.SecurityHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,9 +29,13 @@ public class ReportController {
     @Autowired
     private ExpenseRepository expenseRepository;
 
+    @Autowired
+    private SecurityHelperService securityHelper;
+
     @GetMapping("/top-products")
     public List<Map<String, Object>> getTopProducts() {
-        return saleItemRepository.findTopSellingProducts()
+        User user = securityHelper.getRequiredCurrentUser();
+        return saleItemRepository.findTopSellingProductsByUser(user)
                 .stream()
                 .limit(5)
                 .collect(Collectors.toList());
@@ -37,8 +43,9 @@ public class ReportController {
 
     @GetMapping("/stats")
     public Map<String, Object> getStats() {
-        List<Sale> sales = saleRepository.findAll();
-        List<Expense> expenses = expenseRepository.findAll();
+        User user = securityHelper.getRequiredCurrentUser();
+        List<Sale> sales = saleRepository.findByUserOrderByCreatedAtDesc(user);
+        List<Expense> expenses = expenseRepository.findByUserOrderByExpenseDateDesc(user);
 
         // Agrupar ventas por mes (YYYY-MM)
         Map<String, BigDecimal> salesByMonth = new HashMap<>();
@@ -105,8 +112,9 @@ public class ReportController {
 
     @GetMapping("/movements")
     public List<Map<String, Object>> getMovements() {
-        List<Sale> sales = saleRepository.findAll();
-        List<Expense> expenses = expenseRepository.findAll();
+        User user = securityHelper.getRequiredCurrentUser();
+        List<Sale> sales = saleRepository.findByUserOrderByCreatedAtDesc(user);
+        List<Expense> expenses = expenseRepository.findByUserOrderByExpenseDateDesc(user);
 
         List<Map<String, Object>> movements = new ArrayList<>();
 

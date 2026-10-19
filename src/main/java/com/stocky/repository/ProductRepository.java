@@ -10,4 +10,7 @@ import java.util.UUID;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findBySku(String sku);
+    java.util.List<Product> findByUser(com.stocky.model.User user);
+    Optional<Product> findByIdAndUser(UUID id, com.stocky.model.User user);
+    Optional<Product> findBySkuAndUser(String sku, com.stocky.model.User user);
 }

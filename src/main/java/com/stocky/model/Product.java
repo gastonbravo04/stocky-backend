@@ -25,7 +25,7 @@ public class Product {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, length = 50)
     private String sku;
 
     @Column(name = "sale_price", nullable = false, precision = 12, scale = 2)
@@ -47,6 +47,11 @@ public class Product {
     @JoinColumn(name = "category_id")
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Category category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "hashedPassword"})
+    private User user;
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
