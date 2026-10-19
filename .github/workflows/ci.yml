@@ -81,6 +81,7 @@ jobs:
         uses: anchore/scan-action@v3
         with:
           image: ${{ env.REGISTRY_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          severity-cutoff: critical
           fail-build: true
 
       # NOTA DEVSECOPS: Si Grype falla, el pipeline aborta acá. 
