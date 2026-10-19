@@ -4,6 +4,7 @@ WORKDIR /java/app/base
 RUN apt-get update 
 RUN apt-get install -y build-essential
 RUN apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+
 RUN rm -rf /var/lib/apt/lists/*
 
 COPY pom.xml .
