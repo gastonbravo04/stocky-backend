@@ -40,10 +40,14 @@ public class AuthController {
             userRepository.save(admin);
         }
 
-        Optional<User> userOpt = userRepository.findByEmail(username);
+        String cleanEmail = username != null ? username.trim().toLowerCase() : "";
+        Optional<User> userOpt = userRepository.findByEmail(cleanEmail);
         
         if (userOpt.isEmpty() || !passwordEncoder.matches(password, userOpt.get().getHashedPassword())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "INVALID_CREDENTIALS");
+            error.put("message", "Email o contraseña incorrectos.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
         }
 
         // Usuario autenticado correctamente
@@ -66,18 +70,23 @@ public class AuthController {
             @RequestParam String email,
             @RequestParam String password) {
         
-        if (userRepository.findByEmail(email).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        String cleanEmail = email != null ? email.trim().toLowerCase() : "";
+        
+        if (userRepository.findByEmail(cleanEmail).isPresent()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "EMAIL_ALREADY_EXISTS");
+            error.put("message", "Este correo electrónico ya tiene una cuenta registrada.");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
         }
         
         User user = new User();
-        user.setEmail(email);
-        user.setFullName(name);
+        user.setEmail(cleanEmail);
+        user.setFullName(name != null ? name.trim() : "");
         user.setHashedPassword(passwordEncoder.encode(password));
         user.setRole(com.stocky.model.UserRole.CASHIER);
         userRepository.save(user);
 
-        return login(email, password);
+        return login(cleanEmail, password);
     }
 
     @PostMapping("/refresh")
