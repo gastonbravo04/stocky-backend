@@ -6,7 +6,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests -B
 
 FROM gcr.io/distroless/java17-debian13:nonroot AS runtime
-ENV SPRING_OUTPUT_ANSI_ENABLED=ALWAYS
+ENV SPRING_OUTPUT_ANSI_ENABLED=NEVER
 ENV JAVA_OPTS=""
 
 USER nobody
