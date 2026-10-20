@@ -52,6 +52,17 @@ jobs:
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
 
+      # ---------------------------------------------------------
+      # Snyk: Software Composition Analysis (SCA) para Maven
+      # ---------------------------------------------------------
+      - name: Snyk Dependency Scan (SCA)
+        uses: snyk/actions/maven@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
       - name: Export built JAR artifact
         uses: actions/upload-artifact@v4
         with:
