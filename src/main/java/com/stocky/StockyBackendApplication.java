@@ -5,6 +5,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class StockyBackendApplication {
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Argentina/Buenos_Aires"));
+    }
+
     public static void main(String[] args) {
         SpringApplication.run(StockyBackendApplication.class, args);
     }

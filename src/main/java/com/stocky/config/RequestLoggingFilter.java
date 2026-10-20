@@ -30,6 +30,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         
+        // Ignorar peticiones OPTIONS (CORS preflight del navegador) para mantener el log limpio y relevante
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         long startTime = System.currentTimeMillis();
         try {
             filterChain.doFilter(request, response);
