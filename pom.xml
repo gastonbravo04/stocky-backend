@@ -84,6 +84,32 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- Descarga automatica del agente de Application Insights para Live Metrics -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-agent</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.microsoft.azure</groupId>
+                                    <artifactId>applicationinsights-agent</artifactId>
+                                    <version>3.5.4</version>
+                                    <type>jar</type>
+                                    <destFileName>applicationinsights-agent.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}/agent</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

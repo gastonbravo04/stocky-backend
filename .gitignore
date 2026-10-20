@@ -1,1 +1,3 @@
-﻿target/
+target/
+.azure-credentials.json
+*.secret
