@@ -56,9 +56,13 @@ public class SalesController {
         public int quantity;
     }
 
+    // ========================================================
+    // REGISTRAR VENTA Y DESCONTAR STOCK (MÉTODO PRINCIPAL)
+    // ========================================================
     @PostMapping
-    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.transaction.annotation.Transactional // Garantiza que si falla algún ítem, hace Rollback completo
     public Sale createSale(@RequestBody SaleRequest request) {
+        // 1. Obtener el usuario autenticado a partir del token JWT (Aislamiento de datos)
         User currentUser = securityHelper.getRequiredCurrentUser();
 
         Sale sale = new Sale();
@@ -76,13 +80,16 @@ public class SalesController {
                 com.stocky.model.Product product = productRepository.findById(productId)
                         .orElseThrow(() -> new RuntimeException("Product not found"));
 
-                // Validate and subtract stock
+                // 2. VALIDAR DISPONIBILIDAD DE STOCK EN EL SERVIDOR
                 if (product.getStockQuantity() < itemReq.quantity) {
                     throw new RuntimeException("Insufficient stock for product: " + product.getName());
                 }
+
+                // 3. DESCONTAR EL STOCK DEL PRODUCTO Y PERSISTIR EN POSTGRESQL
                 product.setStockQuantity(product.getStockQuantity() - itemReq.quantity);
                 productRepository.save(product);
 
+                // 4. Registrar movimiento de stock para auditoría histórica
                 com.stocky.model.StockMovement sm = new com.stocky.model.StockMovement();
                 sm.setProduct(product);
                 sm.setMovementType(com.stocky.model.MovementType.SALE);
