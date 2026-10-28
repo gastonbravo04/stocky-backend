@@ -45,7 +45,7 @@ public class ProductController {
                 return legacyProducts;
             }
         }
-        return userProducts;
+        return userProducts.stream().filter(Product::isActive).toList();
     }
 
     @GetMapping("/{id}")
@@ -107,7 +107,10 @@ public class ProductController {
         User user = securityHelper.getRequiredCurrentUser();
         Optional<Product> productOptional = productRepository.findByIdAndUser(id, user);
         if (productOptional.isPresent()) {
-            productRepository.delete(productOptional.get());
+            Product product = productOptional.get();
+            // Borrado lógico (Soft delete) para proteger integridad referencial de ventas y movimientos históricos
+            product.setActive(false);
+            productRepository.save(product);
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.notFound().build();
