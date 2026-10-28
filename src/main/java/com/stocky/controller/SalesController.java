@@ -116,4 +116,39 @@ public class SalesController {
 
         return saleRepository.save(sale);
     }
+
+    // ========================================================
+    // ANULAR / ELIMINAR VENTA Y RESTAURAR STOCK
+    // ========================================================
+    @DeleteMapping("/{id}")
+    @org.springframework.transaction.annotation.Transactional
+    public org.springframework.http.ResponseEntity<?> deleteSale(@PathVariable UUID id) {
+        User currentUser = securityHelper.getRequiredCurrentUser();
+        Sale sale = saleRepository.findByIdAndUser(id, currentUser)
+                .orElseThrow(() -> new RuntimeException("Venta no encontrada"));
+
+        // 1. Restaurar el stock de cada producto involucrado en la venta
+        if (sale.getItems() != null) {
+            for (com.stocky.model.SaleItem item : sale.getItems()) {
+                com.stocky.model.Product product = item.getProduct();
+                if (product != null) {
+                    product.setStockQuantity(product.getStockQuantity() + item.getQuantity());
+                    productRepository.save(product);
+
+                    // 2. Registrar movimiento de stock de tipo RETURN para auditoría
+                    com.stocky.model.StockMovement sm = new com.stocky.model.StockMovement();
+                    sm.setProduct(product);
+                    sm.setMovementType(com.stocky.model.MovementType.RETURN);
+                    sm.setQuantityDelta(item.getQuantity());
+                    stockMovementRepository.save(sm);
+                }
+            }
+        }
+
+        // 3. Eliminar la venta (elimina automáticamente los sale_items por CascadeType.ALL)
+        saleRepository.delete(sale);
+
+        return org.springframework.http.ResponseEntity.ok().build();
+    }
 }
+
